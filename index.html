@@ -1,12 +1,301 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Git Learning</title>
+    <title>改進版記憶配對遊戲</title>
+    <style>
+
+
+    body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+           /* height:30em;*/
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        #game-container {
+            text-align: center;
+        }
+        #game-board {
+            display: grid;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .card {
+            width: 2.5rem;
+            height: 2.5rem;
+            background-color: #ddd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1rem; /* 增大水果圖案 */
+            cursor: pointer;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .card .front, .card .back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .card .front {
+            background-color: #fff;
+            transform: rotateY(180deg);
+        }
+        .card .back {
+            background-color: #ddd;
+        }
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+        #restart-button, .difficulty-button {
+            margin: 0.5rem;
+            padding: 5px 5px;
+            font-size: 0.8em;
+            cursor: pointer;
+        }
+        .confetti {
+            position: absolute;
+            width: 0.3rem;
+            height: 0.3rem;
+            background-color: #f00;
+            opacity: 0;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        .blink {
+            animation: blink 0.5s 5;
+        }
+       
+    </style>
 </head>
 <body>
-    <h1>Hello, It's CQ!</h1>
+    <div id="game-container">
+        <h1>改進版記憶配對遊戲</h1>
+        <div id="difficulty-buttons">
+            <button class="difficulty-button" data-size="4">簡單 (4x4)</button>
+            <button class="difficulty-button" data-size="6">中等 (6x6)</button>
+            <button class="difficulty-button" data-size="8">困難 (8x8)</button>
+        </div>
+        <div id="timer">剩餘時間：00:00</div>
+        <div id="game-board"></div>
+        <button id="restart-button">再玩一次</button>
+    </div>
 
+    <script>
+        const fruits = ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍒', '🍑', '🥝', '🥭', '🍍', '🍅', '🍆', '🥑', '🥕', '🌽', '🍏', '🍈', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍒', '🍑', '🥝', '🥭', '🍍', '🍅'];
+        const gameBoard = document.getElementById('game-board');
+        const restartButton = document.getElementById('restart-button');
+        const timerDisplay = document.getElementById('timer');
+        const difficultyButtons = document.querySelectorAll('.difficulty-button');
+        let cards = [];
+        let flippedCards = [];
+        let matchedPairs = 0;
+        let canFlip = false;
+        let gameSize = 6;
+        let timeLeft;
+        let timerInterval;
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function createCard(fruit, index) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                <div class="front">${fruit}</div>
+                <div class="back">${index + 1}</div>
+            `;
+            card.addEventListener('click', () => flipCard(card, fruit));
+            return card;
+        }
+
+        function initializeGame() {
+            clearInterval(timerInterval);
+            gameBoard.innerHTML = '';
+            cards = [];
+            flippedCards = [];
+            matchedPairs = 0;
+            canFlip = false;
+
+            gameBoard.style.gridTemplateColumns = `repeat(${gameSize}, 1fr)`;
+
+            const shuffledFruits = shuffle(fruits.slice(0, (gameSize * gameSize) / 2));
+            const gameFruits = shuffle([...shuffledFruits, ...shuffledFruits]);
+
+            gameFruits.forEach((fruit, index) => {
+                const card = createCard(fruit, index);
+                cards.push(card);
+                gameBoard.appendChild(card);
+            });
+
+            // Select all elements with the class 'back' & 'front' to change font size
+            const backElements = document.querySelectorAll('.back');
+            const frontElements = document.querySelectorAll('.front');
+            if (gameSize == 4){
+
+                // Loop through each element and change the font size
+                backElements.forEach(function(element) {
+                    element.style.fontSize = '2rem';
+                });
+                frontElements.forEach(function(element) {
+                    element.style.fontSize = '2rem';
+                });
+
+             } else if (gameSize == 8){
+
+                 // Loop through each element and change the font size
+                frontElements.forEach(function(element) {
+                    element.style.fontSize = '1rem';
+                });
+                backElements.forEach(function(element) {
+                    element.style.fontSize = '0.6rem';
+                });
+             } else {
+
+                 // Loop through each element and change the font size
+                backElements.forEach(function(element) {
+                    element.style.fontSize = '1rem';
+                });
+                backElements.forEach(function(element) {
+                    element.style.fontSize = '1rem';
+                });
+             }// end of if
+
+
+            setTimeout(() => {
+                cards.forEach(card => card.classList.add('flipped'));
+                startTimer(10, () => {
+                    cards.forEach(card => card.classList.remove('flipped'));
+                    canFlip = true;
+                    startGameTimer();
+                });
+            }, 100);
+        }
+
+        function startTimer(duration, callback) {
+            let timeLeft = duration;
+            const timer = setInterval(() => {
+                timerDisplay.textContent = `記憶時間：${timeLeft}秒`;
+                if (--timeLeft < 0) {
+                    clearInterval(timer);
+                    timerDisplay.textContent = '開始配對！';
+                    callback();
+                }
+            }, 1000);
+        }
+
+        function startGameTimer() {
+            timeLeft = gameSize === 4 ? 180 : gameSize === 6 ? 480 : 600;
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    alert('時間到！遊戲結束');
+                    initializeGame();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerDisplay.textContent = `剩餘時間：${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function flipCard(card, fruit) {
+            if (!canFlip || flippedCards.length === 2 || card.classList.contains('flipped')) return;
+
+            card.classList.add('flipped');
+            flippedCards.push({ card, fruit });
+
+            if (flippedCards.length === 2) {
+                canFlip = false;
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+            if (card1.fruit === card2.fruit) {
+                matchedPairs++;
+                flippedCards = [];
+                canFlip = true;
+                for (let i = 0; i < 25; i++) { // 增加紙屑數量
+                    createConfetti(card1.card);
+                    createConfetti(card2.card);
+                }
+                if (matchedPairs === (gameSize * gameSize) / 2) {
+                    clearInterval(timerInterval);
+                    setTimeout(() => {
+                        cards.forEach(card => card.classList.add('blink'));
+                        setTimeout(() => {
+                            cards.forEach(card => card.classList.remove('blink'));
+                            alert('恭喜你贏了！');
+                        }, 2500);
+                    }, 500);
+                }
+            } else {
+                setTimeout(() => {
+                    card1.card.classList.remove('flipped');
+                    card2.card.classList.remove('flipped');
+                    flippedCards = [];
+                    canFlip = true;
+                }, 1000);
+            }
+        }
+
+        function createConfetti(card) {
+            const rect = card.getBoundingClientRect();
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.left = `${rect.left + Math.random() * rect.width}px`;
+            confetti.style.top = `${rect.top}px`;
+            document.body.appendChild(confetti);
+
+            const colors = ['#f00', '#0f0', '#00f', '#ff0', '#f0f', '#0ff'];
+            const animationDuration = 1000 + Math.random() * 2000;
+            const fallDistance = window.innerHeight;
+
+            confetti.animate([
+                { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
+                { transform: `translateY(${fallDistance}px) rotate(${720 + Math.random() * 360}deg)`, opacity: 0 }
+            ], {
+                duration: animationDuration,
+                easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            }).onfinish = () => confetti.remove();
+
+            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        restartButton.addEventListener('click', initializeGame);
+
+        difficultyButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                gameSize = parseInt(button.dataset.size);
+                initializeGame();
+            });
+        });
+
+        initializeGame();
+    </script>
 </body>
 </html>
